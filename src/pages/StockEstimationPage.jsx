@@ -1,100 +1,138 @@
-import { useMemo } from 'react'
-import { Box, Card, CardContent, Grid, Typography, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress } from '@mui/material'
-
-const ITEMS = [
-  { sku: 'PCM650', name: 'Paracetamol 650mg', current: 120, leadTimeDays: 3, dailyDemand: 25 },
-  { sku: 'IBU400', name: 'Ibuprofen 400mg', current: 60, leadTimeDays: 5, dailyDemand: 15 },
-  { sku: 'AMOX500', name: 'Amoxicillin 500mg', current: 45, leadTimeDays: 7, dailyDemand: 12 },
-  { sku: 'AZI500', name: 'Azithromycin 500mg', current: 30, leadTimeDays: 6, dailyDemand: 9 },
-]
+import { useState } from 'react'
+import { Box, Card, CardContent, Typography, Chip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Button, Alert, CircularProgress, Paper } from '@mui/material'
+import CloudUploadIcon from '@mui/icons-material/CloudUpload'
 
 export default function StockEstimationPage() {
-  const rows = useMemo(() => ITEMS.map(i => {
-    const leadTimeDemand = i.leadTimeDays * i.dailyDemand
-    const safetyStock = Math.round(0.5 * leadTimeDemand)
-    const reorderPoint = leadTimeDemand + safetyStock
-    const status = i.current <= reorderPoint ? 'Reorder' : 'OK'
-    const daysOfStock = Math.round(i.current / i.dailyDemand)
-    return { ...i, leadTimeDemand, safetyStock, reorderPoint, status, daysOfStock }
-  }), [])
+  const [uploadedData, setUploadedData] = useState([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
 
-  const kpis = useMemo(() => {
-    const totalSkus = rows.length
-    const toReorder = rows.filter(r => r.status === 'Reorder').length
-    const avgDays = Math.round(rows.reduce((s, r) => s + r.daysOfStock, 0) / rows.length)
-    return { totalSkus, toReorder, avgDays }
-  }, [rows])
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel']
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Please upload only .xlsx or .xls files')
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      setIsUploading(true)
+      setUploadError('')
+      const response = await fetch('http://localhost:5000/predict-stock', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Upload failed (${response.status})`)
+      }
+
+      const data = await response.json()
+      setUploadedData(data)
+    } catch (error) {
+      setUploadError(error.message || 'Upload failed')
+    } finally {
+      setIsUploading(false)
+    }
+  }
 
   return (
     <Box>
       <Typography variant="h4" sx={{ mb: 1 }}>Stock Estimation</Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Static demo: computed reorder point (lead time demand + safety stock) and days of stock.
+        Upload an Excel file (.xlsx/.xls) to get AI-powered stock predictions.
       </Typography>
 
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} md={4}>
-          <Card elevation={3}>
-            <CardContent>
-              <Typography variant="overline" color="text.secondary">SKUs</Typography>
-              <Typography variant="h4">{kpis.totalSkus}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card elevation={3}>
-            <CardContent>
-              <Typography variant="overline" color="text.secondary">To Reorder</Typography>
-              <Typography variant="h4">{kpis.toReorder}</Typography>
-              <Box sx={{ mt: 1 }}>
-                <LinearProgress variant="determinate" value={(kpis.toReorder / kpis.totalSkus) * 100} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card elevation={3}>
-            <CardContent>
-              <Typography variant="overline" color="text.secondary">Avg Days of Stock</Typography>
-              <Typography variant="h4">{kpis.avgDays}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <Card elevation={3} sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>Upload Excel File</Typography>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              variant="contained"
+              component="label"
+              startIcon={<CloudUploadIcon />}
+              disabled={isUploading}
+            >
+              {isUploading ? 'Uploading...' : 'Choose File'}
+              <input
+                type="file"
+                hidden
+                accept=".xlsx,.xls"
+                onChange={handleFileUpload}
+              />
+            </Button>
+            {isUploading && <CircularProgress size={20} />}
+          </Box>
+          {uploadError && (
+            <Alert severity="error" sx={{ mt: 2 }}>{uploadError}</Alert>
+          )}
+        </CardContent>
+      </Card>
 
-      <TableContainer component={Card} elevation={3} sx={{ width: '100%', overflowX: 'auto' }}>
+
+      <TableContainer component={Paper} elevation={3} sx={{ width: '100%', overflowX: 'auto' }}>
         <Table size="medium">
           <TableHead>
             <TableRow>
-              <TableCell>SKU</TableCell>
-              <TableCell>Item</TableCell>
-              <TableCell align="right">Current</TableCell>
+              <TableCell>Medicine</TableCell>
+              <TableCell>Category</TableCell>
+              <TableCell align="right">Current Stock</TableCell>
               <TableCell align="right">Daily Demand</TableCell>
-              <TableCell align="right">Lead Time (d)</TableCell>
-              <TableCell align="right">Lead Time Demand</TableCell>
-              <TableCell align="right">Safety Stock</TableCell>
-              <TableCell align="right">Reorder Point</TableCell>
               <TableCell align="right">Days of Stock</TableCell>
-              <TableCell align="center">Status</TableCell>
+              <TableCell align="right">Reorder Point</TableCell>
+              <TableCell align="right">Reorder Qty</TableCell>
+              <TableCell align="right">Price</TableCell>
+              <TableCell align="center">Urgency</TableCell>
+              <TableCell align="center">Needs Reorder</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map(r => (
-              <TableRow key={r.sku} hover>
-                <TableCell>{r.sku}</TableCell>
-                <TableCell>{r.name}</TableCell>
-                <TableCell align="right">{r.current}</TableCell>
-                <TableCell align="right">{r.dailyDemand}</TableCell>
-                <TableCell align="right">{r.leadTimeDays}</TableCell>
-                <TableCell align="right">{r.leadTimeDemand}</TableCell>
-                <TableCell align="right">{r.safetyStock}</TableCell>
-                <TableCell align="right">{r.reorderPoint}</TableCell>
-                <TableCell align="right">{r.daysOfStock}</TableCell>
-                <TableCell align="center">
-                  <Chip size="small" color={r.status === 'Reorder' ? 'secondary' : 'success'} label={r.status} />
+            {uploadedData.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Upload an Excel file to see stock predictions
+                  </Typography>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              uploadedData.map((r, idx) => (
+                <TableRow key={r.medicine_name || idx} hover>
+                  <TableCell>{r.medicine_name}</TableCell>
+                  <TableCell>{r.category}</TableCell>
+                  <TableCell align="right">{r.current_stock}</TableCell>
+                  <TableCell align="right">{r.daily_demand_estimate}</TableCell>
+                  <TableCell align="right">{r.days_of_stock}</TableCell>
+                  <TableCell align="right">{r.reorder_point}</TableCell>
+                  <TableCell align="right">{r.reorder_quantity}</TableCell>
+                  <TableCell align="right">₹{r.price}</TableCell>
+                  <TableCell align="center">
+                    <Chip 
+                      size="small" 
+                      color={
+                        r.urgency === 'Critical' ? 'error' : 
+                        r.urgency === 'High' ? 'warning' : 
+                        r.urgency === 'Medium' ? 'info' : 'default'
+                      } 
+                      label={r.urgency} 
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    <Chip 
+                      size="small" 
+                      color={r.needs_reorder ? 'error' : 'success'} 
+                      label={r.needs_reorder ? 'Yes' : 'No'} 
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
