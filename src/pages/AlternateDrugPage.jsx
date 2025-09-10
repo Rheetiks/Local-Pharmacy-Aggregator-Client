@@ -4,7 +4,7 @@ import SearchIcon from '@mui/icons-material/Search'
 import { Autocomplete } from '@mui/material'
 import LocalPharmacyOutlinedIcon from '@mui/icons-material/LocalPharmacyOutlined'
 
-const BASE_URL = 'http://localhost:5000'
+const BASE_URL = 'http://essentials-temp-3kuty0-56d2bf-46-202-152-148.traefik.me'
 
 export default function AlternateDrugPage() {
   const [allMedicines, setAllMedicines] = useState([])
