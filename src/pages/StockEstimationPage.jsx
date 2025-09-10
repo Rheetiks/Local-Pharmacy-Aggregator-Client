@@ -23,7 +23,7 @@ export default function StockEstimationPage() {
     try {
       setIsUploading(true)
       setUploadError('')
-       const response = await fetch('http://essentials-temp-3kuty0-56d2bf-46-202-152-148.traefik.me/predict-stock', {
+       const response = await fetch('/api/predict-stock', {
         method: 'POST',
         body: formData
       })
