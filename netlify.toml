@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/api/*"
+  to = "http://essentials-temp-3kuty0-56d2bf-46-202-152-148.traefik.me/:splat"
+  status = 200
+  force = true
